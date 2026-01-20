@@ -1,13 +1,11 @@
---[[ 
-    FishLib v3.1 🐟
-    Full Mobile UI Framework
-    Author: Prospect
-]]
+-- FishLib v4.1 🐟
+-- Solara-style animated UI for Roblox
+-- Author: Prospect
 
 local FishLib = {}
-FishLib.Version = "3.1.0"
+FishLib.Version = "4.1.0"
 
--- SERVICES
+-- Services
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -16,258 +14,258 @@ local HttpService = game:GetService("HttpService")
 
 local Player = Players.LocalPlayer
 
--- THEMES
+-- Themes
 local Themes = {
     Ocean = {
-        BG = Color3.fromRGB(10,20,35),
-        Side = Color3.fromRGB(12,30,55),
-        Button = Color3.fromRGB(25,55,90),
-        Accent = Color3.fromRGB(0,170,200),
-        Text = Color3.fromRGB(240,250,255)
+        BG = Color3.fromRGB(15,25,40),
+        Side = Color3.fromRGB(20,40,65),
+        Button = Color3.fromRGB(30,60,100),
+        Accent = Color3.fromRGB(0,170,220),
+        Text = Color3.fromRGB(235,245,255)
     },
     Dark = {
-        BG = Color3.fromRGB(20,20,20),
-        Side = Color3.fromRGB(30,30,30),
-        Button = Color3.fromRGB(45,45,45),
+        BG = Color3.fromRGB(25,25,25),
+        Side = Color3.fromRGB(40,40,40),
+        Button = Color3.fromRGB(55,55,55),
         Accent = Color3.fromRGB(200,200,200),
         Text = Color3.fromRGB(255,255,255)
     }
 }
 
--- CONFIG
+-- Config
 local ConfigFolder = "FishLib"
 local ConfigFile = ConfigFolder .. "/" .. game.PlaceId .. ".json"
 local Config = {}
 
+if readfile and isfile(ConfigFile) then
+    Config = HttpService:JSONDecode(readfile(ConfigFile))
+end
+
 local function saveConfig()
     if writefile then
-        if not isfolder(ConfigFolder) then
-            makefolder(ConfigFolder)
-        end
+        if not isfolder(ConfigFolder) then makefolder(ConfigFolder) end
         writefile(ConfigFile, HttpService:JSONEncode(Config))
     end
 end
 
-local function loadConfig()
-    if readfile and isfile(ConfigFile) then
-        Config = HttpService:JSONDecode(readfile(ConfigFile))
-    end
+-- Utilities
+local function create(class, props)
+    local o = Instance.new(class)
+    for k,v in pairs(props) do o[k] = v end
+    return o
 end
 
-loadConfig()
-
--- UTILS
 local function tween(obj, info, props)
     TweenService:Create(obj, info, props):Play()
 end
 
-local function create(class, props)
-    local obj = Instance.new(class)
-    for k,v in pairs(props) do obj[k] = v end
-    return obj
-end
-
--- NOTIFICATIONS
-local function notify(gui, text)
-    local n = create("TextLabel", {
-        Size = UDim2.fromScale(0.6, 0.08),
-        Position = UDim2.fromScale(0.2, 1),
-        BackgroundColor3 = Color3.fromRGB(0,0,0),
-        BackgroundTransparency = 0.25,
-        Text = text,
-        TextColor3 = Color3.new(1,1,1),
-        Font = Enum.Font.GothamBold,
-        TextSize = 18,
-        Parent = gui
+local function notify(gui,text)
+    local n = create("TextLabel",{
+        Size=UDim2.fromScale(0.6,0.08),
+        Position=UDim2.fromScale(0.2,1),
+        BackgroundColor3=Color3.fromRGB(0,0,0),
+        BackgroundTransparency=0.3,
+        Text=text,
+        TextColor3=Color3.new(1,1,1),
+        Font=Enum.Font.GothamBold,
+        TextSize=18,
+        Parent=gui
     })
     create("UICorner",{CornerRadius=UDim.new(0,14),Parent=n})
-
-    tween(n, TweenInfo.new(.35, Enum.EasingStyle.Quad), {
-        Position = UDim2.fromScale(0.2, 0.88)
-    })
-
-    task.delay(2.5, function()
-        tween(n, TweenInfo.new(.35), {
-            TextTransparency = 1,
-            BackgroundTransparency = 1
-        })
-        task.wait(.4)
+    tween(n,TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Position=UDim2.fromScale(0.2,0.88)})
+    task.delay(2.5,function()
+        tween(n,TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.In),{TextTransparency=1,BackgroundTransparency=1})
+        task.wait(0.4)
         n:Destroy()
     end)
 end
 
--- WINDOW
+-- Drag support
+local function makeDraggable(frame, handle)
+    local dragging, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function() dragging=false end)
+end
+
+-- Window
 function FishLib:CreateWindow(cfg)
     local Theme = Themes[cfg.Theme or "Ocean"]
 
-    local Gui = create("ScreenGui", {
-        Name = "FishLibUI",
-        ResetOnSpawn = false,
-        Parent = Player:WaitForChild("PlayerGui")
-    })
+    local Gui = create("ScreenGui",{Parent=Player.PlayerGui,ResetOnSpawn=false})
 
-    -- BLUR
-    local Blur = Instance.new("BlurEffect")
+    local Blur = Instance.new("BlurEffect",Lighting)
     Blur.Size = 0
-    Blur.Parent = Lighting
 
-    -- FLOATING OPEN BUTTON
-    local OpenBtn = create("TextButton", {
-        Size = UDim2.fromOffset(56,56),
-        Position = UDim2.fromScale(0.03,0.5),
-        BackgroundColor3 = Theme.Accent,
-        Text = "🐟",
-        TextSize = 26,
-        Parent = Gui
+    -- Floating button
+    local OpenBtn = create("TextButton",{
+        Size=UDim2.fromOffset(56,56),
+        Position=UDim2.fromScale(0.03,0.5),
+        BackgroundColor3=Theme.Accent,
+        Text="🐟",
+        TextSize=26,
+        Parent=Gui
     })
     create("UICorner",{CornerRadius=UDim.new(1,0),Parent=OpenBtn})
 
-    -- MAIN WINDOW
-    local Main = create("Frame", {
-        Size = UDim2.fromScale(0.85,0.75),
-        Position = UDim2.fromScale(0.075,0.12),
-        BackgroundColor3 = Theme.BG,
-        Visible = false,
-        Parent = Gui
+    makeDraggable(OpenBtn,OpenBtn)
+
+    -- Main frame
+    local Main = create("Frame",{
+        Size=UDim2.fromScale(0.85,0.75),
+        Position=UDim2.fromScale(0.075,0.12),
+        BackgroundColor3=Theme.BG,
+        Visible=false,
+        Parent=Gui
     })
     create("UICorner",{CornerRadius=UDim.new(0,18),Parent=Main})
 
-    -- TITLE
-    create("TextLabel", {
-        Size = UDim2.new(1,0,0,50),
-        Text = cfg.Title .. " 🐟",
-        BackgroundTransparency = 1,
-        Font = Enum.Font.GothamBlack,
-        TextSize = 22,
-        TextColor3 = Theme.Text,
-        Parent = Main
+    -- Header
+    local Header = create("Frame",{Size=UDim2.new(1,0,0,50),BackgroundTransparency=1,Parent=Main})
+    local Title = create("TextLabel",{
+        Size=UDim2.new(1,0,1,0),
+        Text=cfg.Title.." 🐟",
+        BackgroundTransparency=1,
+        Font=Enum.Font.GothamBlack,
+        TextSize=24,
+        TextColor3=Theme.Text,
+        Parent=Header
     })
 
-    -- CREDITS
-    create("TextLabel", {
-        Size = UDim2.new(1,0,0,22),
-        Position = UDim2.new(0,0,1,-22),
-        Text = cfg.Credits or "",
-        BackgroundTransparency = 1,
-        Font = Enum.Font.Gotham,
-        TextSize = 14,
-        TextColor3 = Theme.Text,
-        Parent = Main
+    local Credits = create("TextLabel",{
+        Size=UDim2.new(1,0,0,22),
+        Position=UDim2.new(0,0,1,-22),
+        Text=cfg.Credits or "",
+        BackgroundTransparency=1,
+        Font=Enum.Font.Gotham,
+        TextSize=14,
+        TextColor3=Theme.Text,
+        Parent=Main
     })
 
-    -- OPEN / CLOSE
+    -- Open/close
     local opened = false
-    OpenBtn.Activated:Connect(function()
+    local function toggleMenu()
         opened = not opened
-        Main.Visible = opened
-        tween(Blur, TweenInfo.new(.3), {Size = opened and 20 or 0})
-    end)
+        Main.Visible = true
+        Main.Position = UDim2.fromScale(0.075,opened and -0.8 or 0.12)
+        tween(Main,TweenInfo.new(0.5,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Position=UDim2.fromScale(0.075,0.12)})
+        tween(Blur,TweenInfo.new(0.4),{Size=opened and 20 or 0})
+    end
+    OpenBtn.Activated:Connect(toggleMenu)
 
-    -- KEYBIND
-    local Keybind = Enum.KeyCode.RightShift
-    UIS.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Keybind then
-            opened = not opened
-            Main.Visible = opened
-            tween(Blur, TweenInfo.new(.3), {Size = opened and 20 or 0})
-        end
-    end)
+    makeDraggable(Main,Header)
 
-    -- SIDE BAR
-    local Side = create("Frame", {
-        Size = UDim2.new(0,70,1,0),
-        BackgroundColor3 = Theme.Side,
-        Parent = Main
-    })
+    -- Side bar
+    local Side = create("Frame",{Size=UDim2.new(0,80,1,0),BackgroundColor3=Theme.Side,Parent=Main})
+    create("UIListLayout",{Padding=UDim.new(0,10),HorizontalAlignment=Enum.HorizontalAlignment.Center,Parent=Side})
 
-    local SideLayout = create("UIListLayout", {
-        Padding = UDim.new(0,10),
-        HorizontalAlignment = Center,
-        Parent = Side
-    })
+    -- Pages
+    local Pages = create("Frame",{Size=UDim2.new(1,-90,1,-70),Position=UDim2.new(0,85,0,55),BackgroundTransparency=1,Parent=Main})
 
-    -- PAGES
-    local Pages = create("Frame", {
-        Size = UDim2.new(1,-80,1,-70),
-        Position = UDim2.new(0,75,0,55),
-        BackgroundTransparency = 1,
-        Parent = Main
-    })
+    notify(Gui,"Welcome "..Player.Name.." 🐟")
 
-    notify(Gui, "Welcome "..Player.Name.." 🐟")
+    local WindowObj = {}
 
-    local Window = {}
-
-    function Window:SetKeybind(key)
-        Keybind = key
+    function WindowObj:SetKeybind(key)
+        UIS.InputBegan:Connect(function(input,gp)
+            if gp then return end
+            if input.KeyCode==key then toggleMenu() end
+        end)
     end
 
-    function Window:SetTheme(name)
+    function WindowObj:SetTheme(name)
         local t = Themes[name]
         if not t then return end
         Theme = t
-        Main.BackgroundColor3 = t.BG
-        Side.BackgroundColor3 = t.Side
+        Main.BackgroundColor3 = Theme.BG
+        Side.BackgroundColor3 = Theme.Side
     end
 
-    function Window:Notify(text)
-        notify(Gui, text)
+    function WindowObj:Notify(text)
+        notify(Gui,text)
     end
 
-    function Window:AddTab(tab)
-        local Page = create("ScrollingFrame", {
-            Size = UDim2.fromScale(1,1),
-            CanvasSize = UDim2.new(0,0,0,0),
-            ScrollBarImageTransparency = 1,
-            Visible = false,
-            Parent = Pages
+    function WindowObj:AddTab(tab)
+        local Page=create("ScrollingFrame",{
+            Size=UDim2.fromScale(1,1),
+            CanvasSize=UDim2.new(0,0,0,0),
+            ScrollBarImageTransparency=1,
+            Visible=false,
+            Parent=Pages
         })
-
-        local Layout = create("UIListLayout", {
-            Padding = UDim.new(0,12),
-            Parent = Page
-        })
-
+        local Layout=create("UIListLayout",{Padding=UDim.new(0,12),Parent=Page})
         Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            Page.CanvasSize = UDim2.new(0,0,0,Layout.AbsoluteContentSize.Y + 20)
+            Page.CanvasSize=UDim2.new(0,0,0,Layout.AbsoluteContentSize.Y+20)
         end)
 
-        local TabBtn = create("ImageButton", {
-            Size = UDim2.fromOffset(46,46),
-            Image = tab.Icon,
-            BackgroundColor3 = Theme.Button,
-            Parent = Side
+        local TabBtn=create("TextButton",{
+            Size=UDim2.fromOffset(60,60),
+            Text=tab.Name,
+            BackgroundColor3=Theme.Button,
+            TextColor3=Theme.Text,
+            Font=Enum.Font.GothamBold,
+            TextSize=14,
+            Parent=Side
         })
         create("UICorner",{CornerRadius=UDim.new(1,0),Parent=TabBtn})
 
+        TabBtn.MouseEnter:Connect(function()
+            tween(TabBtn,TweenInfo.new(0.2),{BackgroundColor3=Theme.Accent})
+        end)
+        TabBtn.MouseLeave:Connect(function()
+            tween(TabBtn,TweenInfo.new(0.2),{BackgroundColor3=Theme.Button})
+        end)
+
         TabBtn.Activated:Connect(function()
             for _,p in pairs(Pages:GetChildren()) do
-                if p:IsA("ScrollingFrame") then p.Visible = false end
+                if p:IsA("ScrollingFrame") then
+                    tween(p,TweenInfo.new(0.3),{Position=UDim2.new(0,0,0,20), BackgroundTransparency=1})
+                    p.Visible=false
+                end
             end
+            Page.Position = UDim2.new(0,0,0,20)
+            Page.BackgroundTransparency = 1
             Page.Visible = true
+            tween(Page,TweenInfo.new(0.35,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{Position=UDim2.new(0,0,0,0), BackgroundTransparency=0})
         end)
 
         local TabObj = {}
 
         function TabObj:AddButton(cfg)
-            local b = create("TextButton", {
-                Size = UDim2.new(1,0,0,50),
-                Text = "  "..cfg.Text,
-                BackgroundColor3 = Theme.Button,
-                TextColor3 = Theme.Text,
-                Font = Enum.Font.GothamBold,
-                TextSize = 16,
-                TextXAlignment = Left,
-                Parent = Page
+            local b=create("TextButton",{
+                Size=UDim2.new(1,0,0,50),
+                Text="  "..cfg.Text,
+                BackgroundColor3=Theme.Button,
+                TextColor3=Theme.Text,
+                Font=Enum.Font.GothamBold,
+                TextSize=16,
+                TextXAlignment=Enum.TextXAlignment.Left,
+                Parent=Page
             })
             create("UICorner",{CornerRadius=UDim.new(0,12),Parent=b})
 
+            b.MouseEnter:Connect(function()
+                tween(b,TweenInfo.new(0.2),{BackgroundColor3=Theme.Accent})
+            end)
+            b.MouseLeave:Connect(function()
+                tween(b,TweenInfo.new(0.2),{BackgroundColor3=Theme.Button})
+            end)
+
             b.Activated:Connect(function()
-                tween(b,TweenInfo.new(.15),{BackgroundColor3=Theme.Accent})
-                task.delay(.15,function()
-                    tween(b,TweenInfo.new(.15),{BackgroundColor3=Theme.Button})
-                end)
+                tween(b,TweenInfo.new(0.1,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.new(1,0,0,45)})
+                task.delay(0.1,function() tween(b,TweenInfo.new(0.1),{Size=UDim2.new(1,0,0,50)}) end)
                 cfg.Callback()
             end)
         end
@@ -276,14 +274,14 @@ function FishLib:CreateWindow(cfg)
             Config[cfg.Text] = Config[cfg.Text] or false
             local state = Config[cfg.Text]
 
-            local t = create("TextButton", {
-                Size = UDim2.new(1,0,0,50),
-                Text = cfg.Text .. (state and " : ON" or " : OFF"),
-                BackgroundColor3 = Theme.Button,
-                TextColor3 = Theme.Text,
-                Font = Enum.Font.GothamBold,
-                TextSize = 16,
-                Parent = Page
+            local t=create("TextButton",{
+                Size=UDim2.new(1,0,0,50),
+                Text=cfg.Text..(state and " : ON" or " : OFF"),
+                BackgroundColor3=Theme.Button,
+                TextColor3=Theme.Text,
+                Font=Enum.Font.GothamBold,
+                TextSize=16,
+                Parent=Page
             })
             create("UICorner",{CornerRadius=UDim.new(0,12),Parent=t})
 
@@ -291,43 +289,17 @@ function FishLib:CreateWindow(cfg)
                 state = not state
                 Config[cfg.Text] = state
                 saveConfig()
-                t.Text = cfg.Text .. (state and " : ON" or " : OFF")
+                tween(t,TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{BackgroundColor3=Theme.Accent})
+                task.delay(0.15,function() tween(t,TweenInfo.new(0.15),{BackgroundColor3=Theme.Button}) end)
+                t.Text = cfg.Text..(state and " : ON" or " : OFF")
                 cfg.Callback(state)
-            end)
-        end
-
-        function TabObj:AddSlider(cfg)
-            Config[cfg.Text] = Config[cfg.Text] or cfg.Min
-            local value = Config[cfg.Text]
-
-            local holder = create("Frame",{Size=UDim2.new(1,0,0,60),BackgroundTransparency=1,Parent=Page})
-            create("TextLabel",{Size=UDim2.new(1,0,0,20),Text=cfg.Text,TextColor3=Theme.Text,BackgroundTransparency=1,Parent=holder})
-
-            local bar = create("Frame",{Size=UDim2.new(1,0,0,8),Position=UDim2.new(0,0,0,35),BackgroundColor3=Theme.Button,Parent=holder})
-            create("UICorner",{CornerRadius=UDim.new(1,0),Parent=bar})
-
-            local fill = create("Frame",{Size=UDim2.new((value-cfg.Min)/(cfg.Max-cfg.Min),0,1,0),BackgroundColor3=Theme.Accent,Parent=bar})
-            create("UICorner",{CornerRadius=UDim.new(1,0),Parent=fill})
-
-            cfg.Callback(value)
-
-            bar.InputBegan:Connect(function(i)
-                if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
-                    local x=(i.Position.X-bar.AbsolutePosition.X)/bar.AbsoluteSize.X
-                    x=math.clamp(x,0,1)
-                    value = math.floor(cfg.Min + (cfg.Max-cfg.Min)*x)
-                    Config[cfg.Text]=value
-                    saveConfig()
-                    fill.Size=UDim2.new(x,0,1,0)
-                    cfg.Callback(value)
-                end
             end)
         end
 
         return TabObj
     end
 
-    return Window
+    return WindowObj
 end
 
 return FishLib
